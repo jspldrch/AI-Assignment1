@@ -1,0 +1,13 @@
+Model: MLP_Deep_Learning
+Cross-Validation Mean Accuracy: 0.9933 (+/- 0.0114)
+
+              precision    recall  f1-score   support
+
+     running       1.00      0.97      0.99        38
+     sitting       1.00      1.00      1.00       119
+      stairs       0.98      1.00      0.99        58
+     walking       0.98      0.98      0.98        54
+
+    accuracy                           0.99       269
+   macro avg       0.99      0.99      0.99       269
+weighted avg       0.99      0.99      0.99       269

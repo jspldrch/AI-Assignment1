@@ -4,106 +4,85 @@ import os
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, cross_val_score, StratifiedKFold
 from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.neural_network import MLPClassifier
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
 
-# ─────────────────────────────────────────────
-# 1. SETUP & DIRECTORIES
-# ─────────────────────────────────────────────
-DATA_PATH = "data/processed/final_features.csv"
-OUTPUT_FOLDER = "results"
-os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+# 1. SETUP
+INPUT_FILE = "data/processed/final_features.csv"
+RESULTS_DIR = "results"
+os.makedirs(RESULTS_DIR, exist_ok=True)
 
-# ─────────────────────────────────────────────
-# 2. DATA LOADING & PREPROCESSING
-# ─────────────────────────────────────────────
-df = pd.read_csv(DATA_PATH)
-
-# Features (X) and Labels (y)
+# 2. LOAD DATA
+df = pd.read_csv(INPUT_FILE)
 X = df.drop('label', axis=1)
 y = df['label']
-class_names = sorted(y.unique())
 
-# Split into Training (70%) and Testing (30%)
-# 'stratify=y' ensures each activity is equally represented in both sets
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.3, random_state=42, stratify=y
-)
-
-# Scaling (Mandatory for k-NN and MLP)
+# 3. SCALING (We scale the whole X for CV, but professionally one should use a Pipeline)
 scaler = StandardScaler()
-X_train_scaled = scaler.fit_transform(X_train)
-X_test_scaled = scaler.transform(X_test)
+X_scaled = scaler.fit_transform(X)
 
-# ─────────────────────────────────────────────
-# 3. DEFINE MODELS
-# ─────────────────────────────────────────────
+# 4. DEFINE MODELS
 models = {
     "Random_Forest": RandomForestClassifier(n_estimators=100, random_state=42),
     "k-Nearest_Neighbors": KNeighborsClassifier(n_neighbors=5),
     "MLP_Deep_Learning": MLPClassifier(hidden_layer_sizes=(64, 32), max_iter=1000, random_state=42)
 }
 
-# ─────────────────────────────────────────────
-# 4. TRAINING & EVALUATION LOOP
-# ─────────────────────────────────────────────
-accuracy_comparison = {}
+# 5. CROSS-VALIDATION & EVALUATION
+cv_results = {}
+final_report = []
+
+# Use StratifiedKFold to keep class balance equal in all folds
+skf = StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
+
+print(f"{'Model':<20} | {'CV Mean Acc':<12} | {'Std Dev':<8}")
+print("-" * 45)
 
 for name, model in models.items():
-    print(f"Currently training: {name}...")
+    # Choose scaled data for k-NN and MLP, raw data for RF
+    current_X = X_scaled if name != "Random_Forest" else X
     
-    # Use scaled data for k-NN and MLP; RF works fine with both
-    X_tr = X_train_scaled if name != "Random_Forest" else X_train
-    X_te = X_test_scaled if name != "Random_Forest" else X_test
+    # Perform 5-Fold Cross-Validation
+    scores = cross_val_score(model, current_X, y, cv=skf)
     
-    # Train
-    model.fit(X_tr, y_train)
+    mean_acc = scores.mean()
+    std_acc = scores.std()
+    cv_results[name] = mean_acc
     
-    # Predict
-    y_pred = model.predict(X_te)
+    print(f"{name:<20} | {mean_acc:.4f}      | {std_acc:.4f}")
+
+    # --- Standard Train-Test Split for Confusion Matrix & Report ---
+    # (CV gives you the score, but for the Matrix we still need one specific split)
+    X_train, X_test, y_train, y_test = train_test_split(current_X, y, test_size=0.3, random_state=42, stratify=y)
+    model.fit(X_train, y_train)
+    y_pred = model.predict(X_test)
     
-    # Calculate Accuracy
-    acc = accuracy_score(y_test, y_pred)
-    accuracy_comparison[name] = acc
-    
-    # 5. SAVE CLASSIFICATION REPORT (Text)
-    report = classification_report(y_test, y_pred)
-    with open(os.path.join(OUTPUT_FOLDER, f"report_{name}.txt"), "w") as f:
-        f.write(f"Model: {name}\nAccuracy: {acc:.4f}\n\n")
-        f.write(report)
-    
-    # 6. SAVE CONFUSION MATRIX (Graph)
-    plt.figure(figsize=(8, 6))
+    # Save Report
+    with open(f"{RESULTS_DIR}/report_{name}.txt", "w") as f:
+        f.write(f"Model: {name}\n")
+        f.write(f"Cross-Validation Mean Accuracy: {mean_acc:.4f} (+/- {std_acc:.4f})\n\n")
+        f.write(classification_report(y_test, y_pred))
+
+    # Save Confusion Matrix
+    plt.figure(figsize=(8,6))
     cm = confusion_matrix(y_test, y_pred)
-    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
-                xticklabels=class_names, yticklabels=class_names)
-    plt.title(f'Confusion Matrix: {name}\nAccuracy: {acc:.2%}')
-    plt.ylabel('True Label')
-    plt.xlabel('Predicted Label')
-    plt.tight_layout()
-    plt.savefig(os.path.join(OUTPUT_FOLDER, f"cm_{name}.png"))
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=model.classes_, yticklabels=model.classes_)
+    plt.title(f"Confusion Matrix: {name}\nCV Accuracy: {mean_acc:.2%}")
+    plt.savefig(f"{RESULTS_DIR}/cm_{name}.png")
     plt.close()
 
-# ─────────────────────────────────────────────
-# 5. FINAL COMPARISON PLOT
-# ─────────────────────────────────────────────
-plt.figure(figsize=(10, 6))
-bars = plt.bar(accuracy_comparison.keys(), accuracy_comparison.values(), color=['#4C72B0', '#55A868', '#C44E52'])
+# 6. SAVE COMPARISON PLOT
+plt.figure(figsize=(10,6))
+plt.bar(cv_results.keys(), cv_results.values(), color=['#4C72B0', '#55A868', '#C44E52'])
+plt.ylabel('Mean CV Accuracy')
+plt.title('5-Fold Cross-Validation Performance')
 plt.ylim(0, 1.1)
-plt.ylabel('Accuracy Score')
-plt.title('Performance Comparison: Accuracy')
+for i, v in enumerate(cv_results.values()):
+    plt.text(i, v + 0.02, f"{v:.2%}", ha='center')
+plt.savefig(f"{RESULTS_DIR}/cv_accuracy_comparison.png")
 
-# Add percentage labels on top
-for bar in bars:
-    yval = bar.get_height()
-    plt.text(bar.get_x() + bar.get_width()/2, yval + 0.01, f"{yval:.2%}", ha='center', va='bottom')
-
-plt.tight_layout()
-plt.savefig(os.path.join(OUTPUT_FOLDER, "accuracy_comparison.png"))
-plt.close()
-
-print(f"\nDone! Please check the folder: '{OUTPUT_FOLDER}' for all reports and graphs.")
+print(f"\nDone! Results with Cross-Validation are in '{RESULTS_DIR}'.")

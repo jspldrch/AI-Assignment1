@@ -21,13 +21,22 @@ ACTIVITIES = ["walking", "running", "sitting", "stairs", "standing"]
 # ─────────────────────────────────────────────
 
 def find_file(activity, sensor_name):
-    """Finds a file that starts with activity and contains sensor_name."""
-    # Search pattern: e.g., data/raw/walking*Linear Acceleration*.csv
-    pattern = os.path.join(RAW_FOLDER, f"{activity}*{sensor_name}*.csv")
-    files = glob.glob(pattern)
-    if not files:
+    # Absolute path for debugging
+    base_path = os.path.join(os.getcwd(), RAW_FOLDER)
+    print(f"  [DEBUG] Searching in: {base_path}")
+    
+    if not os.path.exists(base_path):
+        print(f"  [DEBUG] Directory DOES NOT EXIST: {base_path}")
         return None
-    return files[0] # Take the first matching file
+    
+    all_files = os.listdir(base_path)
+    for f in all_files:
+        if activity.lower() in f.lower() and sensor_name.lower() in f.lower() and f.endswith('.csv'):
+            full_path = os.path.join(base_path, f)
+            print(f"  [DEBUG] Found file: {f}")
+            return full_path
+            
+    return None
 
 def load_csv(filepath):
     if filepath is None or not os.path.exists(filepath):
@@ -75,7 +84,7 @@ def process_activity(activity):
     print(f"\n{'='*50}\n  {activity.upper()}\n{'='*50}")
 
     # Search for files using flexible patterns
-    acc_path  = find_file(activity, "Linear Acceleration")
+    acc_path  = find_file(activity, "Linear")
     gyro_path = find_file(activity, "Gyroscope")
 
     if not acc_path or not gyro_path:

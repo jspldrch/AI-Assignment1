@@ -11,6 +11,33 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.neural_network import MLPClassifier
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
 
+def save_table_as_image(df, filename, title):
+    fig, ax = plt.subplots(figsize=(10, 4))
+    ax.axis('off')
+    ax.set_title(title, fontsize=16, fontweight='bold', pad=20)
+    
+    #table
+    table = ax.table(cellText=df.values, 
+                     colLabels=df.columns, 
+                     rowLabels=df.index if df.index.name != None or not isinstance(df.index, pd.RangeIndex) else None,
+                     cellLoc='center', 
+                     loc='center')
+    
+    
+    table.auto_set_font_size(False)
+    table.set_fontsize(12)
+    table.scale(1.2, 1.5) 
+    
+    
+    for (row, col), cell in table.get_celld().items():
+        if row == 0:
+            cell.set_text_props(weight='bold')
+            
+    plt.tight_layout()
+    plt.savefig(filename, dpi=300, bbox_inches='tight')
+    plt.close()
+
+
 # 1. SETUP
 INPUT_FILE = "data/processed/final_features.csv"
 RESULTS_DIR = "results"
@@ -35,6 +62,7 @@ models = {
 # 5. CROSS-VALIDATION & EVALUATION
 cv_results = {}
 final_report = []
+
 
 # Use StratifiedKFold to keep class balance equal in all folds
 skf = StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
@@ -75,14 +103,34 @@ for name, model in models.items():
     plt.savefig(f"{RESULTS_DIR}/cm_{name}.png")
     plt.close()
 
+    report_dict = classification_report(y_test, y_pred, output_dict=True)
+    report_df = pd.DataFrame(report_dict).transpose().round(3)
+    save_table_as_image(report_df, f"{RESULTS_DIR}/table_img_{name}.png", f"Classification Report: {name}")
+
+    #summary_df = pd.DataFrame(summary_list)
+    #save_table_as_image(summary_df, f"{RESULTS_DIR}/table_img_comparison.png", "Overall Model Performance Comparison")
+
 # 6. SAVE COMPARISON PLOT
-plt.figure(figsize=(10,6))
-plt.bar(cv_results.keys(), cv_results.values(), color=['#4C72B0', '#55A868', '#C44E52'])
-plt.ylabel('Mean CV Accuracy')
-plt.title('5-Fold Cross-Validation Performance')
+
+plt.figure(figsize=(10, 8)) # Increased height slightly for better spacing
+
+# Create bars
+bars = plt.bar(cv_results.keys(), cv_results.values(), color=['#4C72B0', '#55A868', '#C44E52'])
+
+# Increase font size for labels and title
+plt.ylabel('Mean CV Accuracy', fontsize=14)
+plt.title('10-Fold Cross-Validation Performance', fontsize=16, fontweight='bold')
 plt.ylim(0, 1.1)
+
+# Increase font size for the axis ticks (the model names and percentages)
+plt.xticks(fontsize=12)
+plt.yticks(fontsize=12)
+
+# Increase font size for the data labels on top of bars
 for i, v in enumerate(cv_results.values()):
-    plt.text(i, v + 0.02, f"{v:.2%}", ha='center')
+    plt.text(i, v + 0.02, f"{v:.2%}", ha='center', fontsize=13, fontweight='bold')
+
+plt.tight_layout() # Ensures nothing is cut off
 plt.savefig(f"{RESULTS_DIR}/cv_accuracy_comparison.png")
 
 print(f"\nDone! Results with Cross-Validation are in '{RESULTS_DIR}'.")

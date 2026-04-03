@@ -38,43 +38,43 @@ def save_table_as_image(df, filename, title):
     plt.close()
 
 
-# 1. SETUP
+
 INPUT_FILE = "data/processed/final_features.csv"
 RESULTS_DIR = "results"
 os.makedirs(RESULTS_DIR, exist_ok=True)
 
-# 2. LOAD DATA
+#load data
 df = pd.read_csv(INPUT_FILE)
 X = df.drop('label', axis=1)
 y = df['label']
 
-# 3. SCALING (We scale the whole X for CV, but professionally one should use a Pipeline)
+#scale
 scaler = StandardScaler()
 X_scaled = scaler.fit_transform(X)
 
-# 4. DEFINE MODELS
+#model setup
 models = {
     "Random_Forest": RandomForestClassifier(n_estimators=100, random_state=42),
     "k-Nearest_Neighbors": KNeighborsClassifier(n_neighbors=5),
     "MLP_Deep_Learning": MLPClassifier(hidden_layer_sizes=(64, 32), max_iter=1000, random_state=42)
 }
 
-# 5. CROSS-VALIDATION & EVALUATION
+#validation
 cv_results = {}
 final_report = []
 
 
-# Use StratifiedKFold to keep class balance equal in all folds
+#stratified
 skf = StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
 
 print(f"{'Model':<20} | {'CV Mean Acc':<12} | {'Std Dev':<8}")
 print("-" * 45)
 
 for name, model in models.items():
-    # Choose scaled data for k-NN and MLP, raw data for RF
+    
     current_X = X_scaled if name != "Random_Forest" else X
     
-    # Perform 5-Fold Cross-Validation
+   
     scores = cross_val_score(model, current_X, y, cv=skf)
     
     mean_acc = scores.mean()
@@ -83,19 +83,19 @@ for name, model in models.items():
     
     print(f"{name:<20} | {mean_acc:.4f}      | {std_acc:.4f}")
 
-    # --- Standard Train-Test Split for Confusion Matrix & Report ---
-    # (CV gives you the score, but for the Matrix we still need one specific split)
+    #Train-Test Split
+    
     X_train, X_test, y_train, y_test = train_test_split(current_X, y, test_size=0.3, random_state=42, stratify=y)
     model.fit(X_train, y_train)
     y_pred = model.predict(X_test)
     
-    # Save Report
+    #report
     with open(f"{RESULTS_DIR}/report_{name}.txt", "w") as f:
         f.write(f"Model: {name}\n")
         f.write(f"Cross-Validation Mean Accuracy: {mean_acc:.4f} (+/- {std_acc:.4f})\n\n")
         f.write(classification_report(y_test, y_pred))
 
-    # Save Confusion Matrix
+    #Confusion Matrix
     plt.figure(figsize=(8,6))
     cm = confusion_matrix(y_test, y_pred)
     sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=model.classes_, yticklabels=model.classes_)
@@ -107,30 +107,23 @@ for name, model in models.items():
     report_df = pd.DataFrame(report_dict).transpose().round(3)
     save_table_as_image(report_df, f"{RESULTS_DIR}/table_img_{name}.png", f"Classification Report: {name}")
 
-    #summary_df = pd.DataFrame(summary_list)
-    #save_table_as_image(summary_df, f"{RESULTS_DIR}/table_img_comparison.png", "Overall Model Performance Comparison")
+ 
 
-# 6. SAVE COMPARISON PLOT
+#plot
 
-plt.figure(figsize=(10, 8)) # Increased height slightly for better spacing
+plt.figure(figsize=(10, 8))
 
-# Create bars
+
 bars = plt.bar(cv_results.keys(), cv_results.values(), color=['#4C72B0', '#55A868', '#C44E52'])
-
-# Increase font size for labels and title
 plt.ylabel('Mean CV Accuracy', fontsize=14)
 plt.title('10-Fold Cross-Validation Performance', fontsize=16, fontweight='bold')
 plt.ylim(0, 1.1)
-
-# Increase font size for the axis ticks (the model names and percentages)
 plt.xticks(fontsize=12)
 plt.yticks(fontsize=12)
 
-# Increase font size for the data labels on top of bars
 for i, v in enumerate(cv_results.values()):
     plt.text(i, v + 0.02, f"{v:.2%}", ha='center', fontsize=13, fontweight='bold')
 
 plt.tight_layout() # Ensures nothing is cut off
 plt.savefig(f"{RESULTS_DIR}/cv_accuracy_comparison.png")
 
-print(f"\nDone! Results with Cross-Validation are in '{RESULTS_DIR}'.")

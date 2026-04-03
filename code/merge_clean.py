@@ -3,9 +3,6 @@ import numpy as np
 import os
 import glob
 
-# ─────────────────────────────────────────────
-# SETTINGS
-# ─────────────────────────────────────────────
 SAMPLE_RATE   = 50 
 TRIM_SECONDS  = 15 
 TRIM_ROWS     = SAMPLE_RATE * TRIM_SECONDS 
@@ -16,12 +13,10 @@ os.makedirs(PROCESSED_FOLDER, exist_ok=True)
 
 ACTIVITIES = ["walking", "running", "sitting", "stairs", "standing"]
 
-# ─────────────────────────────────────────────
-# HELPER FUNCTIONS
-# ─────────────────────────────────────────────
+#helper
 
 def find_file(activity, sensor_name):
-    # Absolute path for debugging
+    
     base_path = os.path.join(os.getcwd(), RAW_FOLDER)
     print(f"  [DEBUG] Searching in: {base_path}")
     
@@ -76,9 +71,7 @@ def merge_acc_gyro(acc_df, gyro_df):
     print(f"  Merged successfully: {len(merged)} rows")
     return merged
 
-# ─────────────────────────────────────────────
-# MAIN PROCESS
-# ─────────────────────────────────────────────
+
 
 def process_activity(activity):
     print(f"\n{'='*50}\n  {activity.upper()}\n{'='*50}")
